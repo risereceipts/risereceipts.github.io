@@ -625,10 +625,39 @@ body {
         signinScreen.classList.add('open');
     }
 
+    // === Allowlist (mirrors the worker's allowlist) ===
+    const ALLOWED_EMAILS = new Set([
+        'brandon@risechurchdecatur.com',
+        'rhonda@risechurchdecatur.com',
+        'garret@risechurchdecatur.com',
+        'james@risechurchdecatur.com',
+        'riseandshine@risechurchdecatur.com',
+        'brandon.pelton77@gmail.com', // testing
+    ]);
+    function isAllowed(email) {
+        if (!email) return false;
+        const e = String(email).toLowerCase();
+        if (ALLOWED_EMAILS.has(e)) return true;
+        if (e.endsWith('@risechurchdecatur.com')) return true;
+        return false;
+    }
+
     // === Google Identity Services ===
     function handleCredentialResponse(response) {
         if (!response || !response.credential) {
             showToast('Sign-in failed', 'error');
+            return;
+        }
+        const payload = decodeJwt(response.credential);
+        if (!payload || !payload.email) {
+            showToast('Could not parse credentials', 'error');
+            return;
+        }
+        if (!isAllowed(payload.email)) {
+            const fb = document.getElementById('signinFallback');
+            fb.style.display = 'block';
+            fb.textContent = `${payload.email} is not authorized. Receipt Inbox is for RISE Church staff only — contact Brandon if you should have access.`;
+            try { google.accounts.id.disableAutoSelect(); } catch (e) {}
             return;
         }
         const user = saveUser(response.credential);
@@ -636,6 +665,8 @@ body {
             showToast('Could not parse credentials', 'error');
             return;
         }
+        const fb = document.getElementById('signinFallback');
+        fb.style.display = 'none';
         showAppScreen(user);
     }
 
