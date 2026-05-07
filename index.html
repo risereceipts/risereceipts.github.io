@@ -2,46 +2,66 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Receipt Inbox</title>
 
 <meta name="description" content="Snap a receipt and email it to any inbox you choose.">
-<meta name="theme-color" content="#0F3560">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 
 <!-- iOS Web App / Add to Home Screen -->
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Receipt Inbox">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Receipts">
 <link rel="manifest" href="manifest.json">
 
 <style>
 :root {
-    --tint: #0a84ff;
+    /* iOS systemBlue */
+    --tint: #007aff;
+    --tint-pressed: #0064d4;
+    /* iOS Light backgrounds */
     --bg: #ffffff;
-    --bg-card: #f7f7f7;
-    --text: #111111;
-    --text-secondary: #6b6b6b;
-    --border: #e4e4e7;
+    --bg-grouped: #f2f2f7;
+    --bg-elevated: #ffffff;
+    /* iOS Light text */
+    --text: #000000;
+    --text-secondary: rgba(60, 60, 67, 0.6);
+    --text-tertiary: rgba(60, 60, 67, 0.3);
+    /* iOS separators */
+    --separator: rgba(60, 60, 67, 0.12);
+    --separator-opaque: #c6c6c8;
+    /* Status colors */
     --warn: #ff9500;
     --error: #ff3b30;
     --success: #34c759;
-    --shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+
+    --shadow-button: 0 8px 24px rgba(0, 122, 255, 0.32);
+    --shadow-toast: 0 8px 24px rgba(0, 0, 0, 0.16);
+    --shadow-sheet: 0 -8px 32px rgba(0, 0, 0, 0.12);
+
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
 }
 
 @media (prefers-color-scheme: dark) {
     :root {
         --tint: #0a84ff;
+        --tint-pressed: #006bd6;
         --bg: #000000;
-        --bg-card: #1c1c1e;
+        --bg-grouped: #000000;
+        --bg-elevated: #1c1c1e;
         --text: #ffffff;
-        --text-secondary: #98989f;
-        --border: #2c2c2e;
-        --shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+        --text-secondary: rgba(235, 235, 245, 0.6);
+        --text-tertiary: rgba(235, 235, 245, 0.3);
+        --separator: rgba(84, 84, 88, 0.65);
+        --separator-opaque: #38383a;
     }
 }
 
@@ -49,159 +69,208 @@
 html, body { margin: 0; padding: 0; height: 100%; overscroll-behavior-y: contain; }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", system-ui, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
     background: var(--bg);
     color: var(--text);
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
     line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
 }
 
 /* === Layout === */
-.app { display: flex; flex-direction: column; height: 100vh; padding-top: var(--safe-top); padding-bottom: var(--safe-bottom); }
+.app {
+    display: flex; flex-direction: column;
+    min-height: 100vh; min-height: 100dvh;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+}
 
 .header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
 }
 
 .dest-pill {
     display: inline-flex; align-items: center; gap: 6px;
+    background: none; border: 0; padding: 8px 0;
     color: var(--text-secondary);
     font-size: 14px;
-    max-width: 220px;
+    font-weight: 500;
+    max-width: 240px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    cursor: pointer;
 }
+.dest-pill svg { flex-shrink: 0; }
 .dest-pill.unset { color: var(--warn); }
 
 .icon-btn {
     background: none; border: 0; padding: 8px;
-    color: var(--tint); cursor: pointer; font-size: 20px;
+    color: var(--tint); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
 }
+.icon-btn:active { color: var(--tint-pressed); }
 
 .main {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 24px; gap: 24px;
+    padding: 32px 24px; gap: 28px;
+}
+
+.hero-icon {
+    color: var(--tint);
+    opacity: 0.95;
+}
+
+.title {
+    font-size: 34px; font-weight: 700;
+    letter-spacing: -0.4px;
+    margin: 0;
+    text-align: center;
+}
+
+.subtitle {
+    text-align: center; color: var(--text-secondary);
+    font-size: 15px; padding: 0 8px;
+    max-width: 320px;
+    margin: 0;
 }
 
 .capture-btn {
     width: 220px; height: 220px; border-radius: 50%;
     background: var(--tint); color: white; border: 0;
     font-size: 22px; font-weight: 700;
-    box-shadow: var(--shadow);
-    cursor: pointer; transition: transform 0.1s;
+    box-shadow: var(--shadow-button);
+    cursor: pointer; transition: transform 0.1s, background 0.1s;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    margin-top: 8px;
 }
-.capture-btn:active { transform: scale(0.97); }
-.capture-btn .camera-icon { font-size: 56px; line-height: 1; }
+.capture-btn:active { transform: scale(0.96); background: var(--tint-pressed); }
 
-.subtitle {
-    text-align: center; color: var(--text-secondary);
-    font-size: 14px; padding: 0 16px;
+.footer-text {
+    color: var(--text-secondary);
+    font-size: 13px;
+    text-align: center;
+    padding: 24px 16px 16px;
 }
 
+/* Toast */
 .toast {
     position: fixed; bottom: calc(24px + var(--safe-bottom)); left: 50%; transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.9); color: white;
+    background: rgba(0, 0, 0, 0.88); color: white;
     padding: 10px 18px; border-radius: 999px;
     font-size: 14px; font-weight: 500;
     opacity: 0; transition: opacity 0.2s;
     pointer-events: none;
-    box-shadow: var(--shadow);
+    box-shadow: var(--shadow-toast);
+    z-index: 100;
 }
 .toast.show { opacity: 1; }
 .toast.success { background: var(--success); }
 .toast.error { background: var(--error); }
 
-/* Hidden file input — invisible but functional */
+/* Hidden file input */
 .file-input { display: none; }
 
-/* === Sheets (Settings, etc.) === */
+/* === Settings Sheet === */
 .sheet-backdrop {
     position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4);
-    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    opacity: 0; pointer-events: none; transition: opacity 0.25s;
     z-index: 10;
+    -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
 }
 .sheet-backdrop.open { opacity: 1; pointer-events: auto; }
 
 .sheet {
     position: fixed; bottom: 0; left: 0; right: 0;
-    background: var(--bg);
-    border-top-left-radius: 18px; border-top-right-radius: 18px;
-    transform: translateY(100%); transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    max-height: 90vh; display: flex; flex-direction: column;
+    background: var(--bg-grouped);
+    border-top-left-radius: 14px; border-top-right-radius: 14px;
+    transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    max-height: 92vh; max-height: 92dvh;
+    display: flex; flex-direction: column;
     z-index: 11;
     padding-bottom: var(--safe-bottom);
+    box-shadow: var(--shadow-sheet);
 }
 .sheet.open { transform: translateY(0); }
 
+.sheet-handle {
+    width: 36px; height: 5px; border-radius: 999px;
+    background: var(--separator-opaque);
+    margin: 8px auto 0;
+    flex-shrink: 0;
+}
+
 .sheet-header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 16px;
-    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    flex-shrink: 0;
 }
 .sheet-title { font-weight: 600; font-size: 17px; }
 .sheet-close {
-    background: none; border: 0; color: var(--tint); font-size: 17px;
-    padding: 4px 8px; cursor: pointer;
+    background: none; border: 0; color: var(--tint); font-size: 17px; font-weight: 600;
+    padding: 6px 10px; cursor: pointer; min-width: 60px;
 }
 
 .sheet-body {
     flex: 1; overflow-y: auto;
-    padding: 12px 16px 24px;
+    padding: 0 16px 32px;
+    -webkit-overflow-scrolling: touch;
 }
 
 .section {
-    margin-bottom: 24px;
+    margin-bottom: 28px;
 }
 .section-title {
-    text-transform: uppercase; font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
+    text-transform: uppercase; font-size: 13px; font-weight: 400;
     color: var(--text-secondary);
-    margin: 0 4px 6px;
+    margin: 0 16px 6px;
+    letter-spacing: -0.08px;
 }
 .section-card {
-    background: var(--bg-card);
-    border-radius: 12px;
-    padding: 12px 16px;
+    background: var(--bg-elevated);
+    border-radius: 10px;
+    overflow: hidden;
 }
 .section-footer {
-    color: var(--text-secondary); font-size: 12px;
-    margin: 8px 4px 0;
+    color: var(--text-secondary); font-size: 13px;
+    margin: 8px 16px 0;
+    line-height: 1.35;
 }
 
-label.field {
-    display: flex; flex-direction: column; gap: 6px;
+.field-row {
+    padding: 11px 16px;
+    border-bottom: 0.5px solid var(--separator);
 }
+.field-row:last-child { border-bottom: 0; }
+
 input[type="text"], input[type="email"] {
     -webkit-appearance: none; appearance: none;
     background: transparent; color: var(--text);
     border: 0; outline: 0;
     font-size: 17px;
-    padding: 6px 0;
+    padding: 0;
     -webkit-user-select: text; user-select: text;
     width: 100%;
+    font-family: inherit;
 }
-input::placeholder { color: var(--text-secondary); }
+input::placeholder { color: var(--text-tertiary); }
 
 .row {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border);
+    padding: 11px 16px;
+    border-bottom: 0.5px solid var(--separator);
+    font-size: 17px;
+    text-decoration: none;
+    color: inherit;
 }
 .row:last-child { border-bottom: 0; }
-.row-label { font-size: 16px; }
-.row-value { color: var(--text-secondary); font-size: 16px; }
-
-.about-link {
-    display: block; padding: 10px 0;
-    color: var(--tint); text-decoration: none;
-    font-size: 16px;
-    border-bottom: 1px solid var(--border);
-}
-.about-link:last-child { border-bottom: 0; }
+.row-value { color: var(--text-secondary); }
+.row.link { color: var(--tint); }
+.row .chevron { color: var(--text-tertiary); }
 </style>
 </head>
 
@@ -211,17 +280,42 @@ input::placeholder { color: var(--text-secondary); }
 
     <header class="header">
         <button class="dest-pill" id="destButton" aria-label="Destination email">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="6" width="18" height="13" rx="2"/>
+                <path d="m3 8 9 6 9-6"/>
+            </svg>
             <span id="destLabel">Set destination</span>
         </button>
-        <button class="icon-btn" id="settingsButton" aria-label="Settings">⚙</button>
+        <button class="icon-btn" id="settingsButton" aria-label="Settings">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM19.43 12.98a7.6 7.6 0 0 0 0-1.96l2.11-1.65a.5.5 0 0 0 .12-.64l-2-3.46a.5.5 0 0 0-.6-.22l-2.49 1a7.5 7.5 0 0 0-1.69-.98l-.38-2.65A.5.5 0 0 0 14 2h-4a.5.5 0 0 0-.5.42l-.38 2.65a7.5 7.5 0 0 0-1.69.98l-2.49-1a.5.5 0 0 0-.6.22l-2 3.46a.5.5 0 0 0 .12.64l2.11 1.65a7.6 7.6 0 0 0 0 1.96l-2.11 1.65a.5.5 0 0 0-.12.64l2 3.46c.14.24.43.34.69.22l2.4-.97a7.5 7.5 0 0 0 1.69.98l.38 2.65a.5.5 0 0 0 .5.42h4a.5.5 0 0 0 .5-.42l.38-2.65a7.5 7.5 0 0 0 1.69-.98l2.49 1a.5.5 0 0 0 .6-.22l2-3.46a.5.5 0 0 0-.12-.64l-2.11-1.65z"/>
+            </svg>
+        </button>
     </header>
 
     <main class="main">
+        <!-- Hero icon (matches the iOS doc.viewfinder.fill) -->
+        <svg class="hero-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 7V5a2 2 0 0 1 2-2h2"/>
+            <path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+            <path d="M21 17v2a2 2 0 0 1-2 2h-2"/>
+            <path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+            <rect x="7" y="7" width="10" height="10" rx="1.5"/>
+        </svg>
+
+        <h1 class="title">Receipt Inbox</h1>
+        <p class="subtitle">Snap a receipt and email it to any inbox you choose.</p>
+
         <button class="capture-btn" id="captureButton" aria-label="Capture a receipt">
-            <span class="camera-icon">📷</span>
+            <svg width="56" height="56" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M9 3 7.17 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3H9zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/>
+            </svg>
             <span>Capture</span>
         </button>
-        <p class="subtitle">Tap Capture, take a photo, then send it to your inbox via Mail.</p>
+
+        <div style="flex: 1"></div>
+
+        <p class="footer-text" id="footerText">Tap Capture, take a photo, then send via Mail.</p>
     </main>
 </div>
 
@@ -231,7 +325,9 @@ input::placeholder { color: var(--text-secondary); }
 <!-- Settings sheet -->
 <div class="sheet-backdrop" id="settingsBackdrop"></div>
 <div class="sheet" id="settingsSheet" role="dialog" aria-label="Settings">
+    <div class="sheet-handle"></div>
     <div class="sheet-header">
+        <span style="min-width:60px"></span>
         <span class="sheet-title">Settings</span>
         <button class="sheet-close" id="settingsClose">Done</button>
     </div>
@@ -240,7 +336,7 @@ input::placeholder { color: var(--text-secondary); }
         <section class="section">
             <h3 class="section-title">Send Receipts To</h3>
             <div class="section-card">
-                <label class="field">
+                <div class="field-row">
                     <input type="email" id="destInput"
                            placeholder="receipts@example.com"
                            autocomplete="email"
@@ -248,31 +344,36 @@ input::placeholder { color: var(--text-secondary); }
                            autocapitalize="off"
                            autocorrect="off"
                            spellcheck="false">
-                </label>
+                </div>
             </div>
-            <p class="section-footer">When you tap Capture, this is the email address that gets pre-filled in the Mail composer.</p>
+            <p class="section-footer">When you tap Capture, this is the email address that gets pre-filled in the Mail composer. Leave blank to type the destination yourself each time.</p>
         </section>
 
         <section class="section">
             <h3 class="section-title">Your Name</h3>
             <div class="section-card">
-                <label class="field">
+                <div class="field-row">
                     <input type="text" id="nameInput"
-                           placeholder="Optional — appears in the email body"
-                           autocomplete="name">
-                </label>
+                           placeholder="Optional"
+                           autocomplete="name"
+                           autocapitalize="words"
+                           spellcheck="false">
+                </div>
             </div>
-            <p class="section-footer">Optional. If set, "Captured by [Your Name]" is added to the email body.</p>
+            <p class="section-footer">If set, "Captured by [Your Name]" is added to the email body so the recipient knows who sent it.</p>
         </section>
 
         <section class="section">
             <h3 class="section-title">About</h3>
             <div class="section-card">
                 <div class="row">
-                    <span class="row-label">Version</span>
+                    <span>Version</span>
                     <span class="row-value" id="versionRow">1.0</span>
                 </div>
-                <a class="about-link" href="https://ultrowillyhub.github.io/receipt-inbox-privacy/" target="_blank" rel="noopener">Privacy Policy ↗</a>
+                <a class="row link" href="https://ultrowillyhub.github.io/receipt-inbox-privacy/" target="_blank" rel="noopener">
+                    <span>Privacy Policy</span>
+                    <span class="chevron">›</span>
+                </a>
             </div>
         </section>
 
@@ -300,36 +401,33 @@ input::placeholder { color: var(--text-secondary); }
     const nameInput = document.getElementById('nameInput');
     const versionRow = document.getElementById('versionRow');
     const toast = document.getElementById('toast');
+    const footerText = document.getElementById('footerText');
 
     versionRow.textContent = VERSION;
 
     // --- Storage helpers ---
-    function getDest() {
-        return (localStorage.getItem(KEY_DEST) || '').trim();
-    }
-    function setDest(value) {
-        const v = (value || '').trim();
-        if (v) localStorage.setItem(KEY_DEST, v);
-        else localStorage.removeItem(KEY_DEST);
-    }
-    function getName() {
-        return (localStorage.getItem(KEY_NAME) || '').trim();
-    }
-    function setName(value) {
-        const v = (value || '').trim();
-        if (v) localStorage.setItem(KEY_NAME, v);
-        else localStorage.removeItem(KEY_NAME);
-    }
+    const getDest = () => (localStorage.getItem(KEY_DEST) || '').trim();
+    const setDest = (v) => {
+        const t = (v || '').trim();
+        if (t) localStorage.setItem(KEY_DEST, t); else localStorage.removeItem(KEY_DEST);
+    };
+    const getName = () => (localStorage.getItem(KEY_NAME) || '').trim();
+    const setName = (v) => {
+        const t = (v || '').trim();
+        if (t) localStorage.setItem(KEY_NAME, t); else localStorage.removeItem(KEY_NAME);
+    };
 
     // --- Header destination label ---
     function refreshDestLabel() {
         const dest = getDest();
         if (dest) {
-            destLabel.textContent = '→ ' + dest;
+            destLabel.textContent = dest;
             destButton.classList.remove('unset');
+            footerText.textContent = `Sends to ${dest}`;
         } else {
             destLabel.textContent = 'Set destination';
             destButton.classList.add('unset');
+            footerText.textContent = 'Tip: tap ⚙ to set a default destination email.';
         }
     }
 
@@ -350,7 +448,6 @@ input::placeholder { color: var(--text-secondary); }
         settingsBackdrop.classList.add('open');
     }
     function closeSettings() {
-        // Save on close
         setDest(destInput.value);
         setName(nameInput.value);
         settingsSheet.classList.remove('open');
@@ -362,12 +459,11 @@ input::placeholder { color: var(--text-secondary); }
     settingsBackdrop.addEventListener('click', closeSettings);
     destButton.addEventListener('click', openSettings);
 
-    // Save on each input edit (so background or app-quit doesn't lose)
     destInput.addEventListener('input', () => setDest(destInput.value));
     nameInput.addEventListener('input', () => setName(nameInput.value));
 
     // --- Capture flow ---
-    function pad(n) { return String(n).padStart(2, '0'); }
+    const pad = (n) => String(n).padStart(2, '0');
 
     function buildEmailParts(file) {
         const dest = getDest();
@@ -381,9 +477,7 @@ input::placeholder { color: var(--text-secondary); }
         if (name) body += `\nCaptured by: ${name}`;
         body += `\n\nSent from Receipt Inbox.`;
         return {
-            dest,
-            subject,
-            body,
+            dest, subject, body,
             file: new File([file], filename, { type: file.type || 'image/jpeg' }),
         };
     }
@@ -395,15 +489,12 @@ input::placeholder { color: var(--text-secondary); }
         }
         const parts = buildEmailParts(file);
 
-        // Web Share API — opens iOS share sheet with photo attached.
-        // User picks Mail, types/auto-completes recipient, taps Send.
         const shareData = {
             title: parts.subject,
             text: parts.body + (parts.dest ? `\n\nSend to: ${parts.dest}` : ''),
             files: [parts.file],
         };
 
-        // Some iOS builds don't support `files` in canShare — guard cautiously.
         const canShareFiles = navigator.canShare && navigator.canShare({ files: [parts.file] });
 
         if (navigator.share && canShareFiles) {
@@ -411,18 +502,16 @@ input::placeholder { color: var(--text-secondary); }
                 await navigator.share(shareData);
                 showToast('Opened share sheet', 'success');
             } catch (err) {
-                if (err && err.name === 'AbortError') return; // user cancelled — silent
+                if (err && err.name === 'AbortError') return;
                 console.error(err);
                 showToast('Could not share', 'error');
             }
         } else {
-            // Fallback for unsupported browsers — offer a download + open Mail
             fallbackDownloadAndMailto(parts);
         }
     }
 
     function fallbackDownloadAndMailto(parts) {
-        // Download the photo first so the user can attach it manually
         const url = URL.createObjectURL(parts.file);
         const a = document.createElement('a');
         a.href = url;
@@ -432,7 +521,6 @@ input::placeholder { color: var(--text-secondary); }
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        // Open mailto with To/Subject/Body pre-filled (no attachment via mailto)
         const dest = encodeURIComponent(parts.dest || '');
         const subject = encodeURIComponent(parts.subject);
         const body = encodeURIComponent(parts.body + '\n\n(Attach the photo that just downloaded.)');
@@ -441,7 +529,6 @@ input::placeholder { color: var(--text-secondary); }
     }
 
     captureButton.addEventListener('click', () => {
-        // Reset value first so re-selecting same file fires change
         fileInput.value = '';
         fileInput.click();
     });
@@ -451,7 +538,6 @@ input::placeholder { color: var(--text-secondary); }
         if (file) handleCapture(file);
     });
 
-    // --- Init ---
     refreshDestLabel();
 })();
 </script>
