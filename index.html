@@ -5,45 +5,37 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Receipt Inbox</title>
 
-<meta name="description" content="Snap a receipt and email it to any inbox you choose.">
+<meta name="description" content="Snap a receipt and email it to your finance inbox.">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 
-<!-- iOS Web App / Add to Home Screen -->
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Receipts">
 <link rel="manifest" href="manifest.json">
 
 <style>
 :root {
-    /* iOS systemBlue */
     --tint: #007aff;
     --tint-pressed: #0064d4;
-    /* iOS Light backgrounds */
     --bg: #ffffff;
     --bg-grouped: #f2f2f7;
     --bg-elevated: #ffffff;
-    /* iOS Light text */
     --text: #000000;
     --text-secondary: rgba(60, 60, 67, 0.6);
     --text-tertiary: rgba(60, 60, 67, 0.3);
-    /* iOS separators */
     --separator: rgba(60, 60, 67, 0.12);
     --separator-opaque: #c6c6c8;
-    /* Status colors */
     --warn: #ff9500;
     --error: #ff3b30;
     --success: #34c759;
-
     --shadow-button: 0 8px 24px rgba(0, 122, 255, 0.32);
     --shadow-toast: 0 8px 24px rgba(0, 0, 0, 0.16);
     --shadow-sheet: 0 -8px 32px rgba(0, 0, 0, 0.12);
-
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     --safe-left: env(safe-area-inset-left, 0px);
@@ -67,7 +59,6 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; padding: 0; height: 100%; overscroll-behavior-y: contain; }
-
 body {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
     background: var(--bg);
@@ -79,7 +70,7 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
-/* === Layout === */
+/* === Home screen === */
 .app {
     display: flex; flex-direction: column;
     min-height: 100vh; min-height: 100dvh;
@@ -99,14 +90,12 @@ body {
     display: inline-flex; align-items: center; gap: 6px;
     background: none; border: 0; padding: 8px 0;
     color: var(--text-secondary);
-    font-size: 14px;
-    font-weight: 500;
+    font-size: 14px; font-weight: 500;
     max-width: 240px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    cursor: pointer;
+    cursor: default;
 }
 .dest-pill svg { flex-shrink: 0; }
-.dest-pill.unset { color: var(--warn); }
 
 .icon-btn {
     background: none; border: 0; padding: 8px;
@@ -120,16 +109,12 @@ body {
     padding: 32px 24px; gap: 28px;
 }
 
-.hero-icon {
-    color: var(--tint);
-    opacity: 0.95;
-}
+.hero-icon { color: var(--tint); opacity: 0.95; }
 
 .title {
     font-size: 34px; font-weight: 700;
     letter-spacing: -0.4px;
-    margin: 0;
-    text-align: center;
+    margin: 0; text-align: center;
 }
 
 .subtitle {
@@ -157,7 +142,7 @@ body {
     padding: 24px 16px 16px;
 }
 
-/* Toast */
+/* === Toast === */
 .toast {
     position: fixed; bottom: calc(24px + var(--safe-bottom)); left: 50%; transform: translateX(-50%);
     background: rgba(0, 0, 0, 0.88); color: white;
@@ -167,134 +152,159 @@ body {
     pointer-events: none;
     box-shadow: var(--shadow-toast);
     z-index: 100;
+    max-width: calc(100vw - 32px);
+    text-align: center;
 }
 .toast.show { opacity: 1; }
 .toast.success { background: var(--success); }
 .toast.error { background: var(--error); }
 
-/* Hidden file input */
-.file-input { display: none; }
+/* === Camera screen === */
+.camera-screen {
+    position: fixed; inset: 0;
+    background: #000;
+    z-index: 50;
+    display: none;
+    flex-direction: column;
+}
+.camera-screen.open { display: flex; }
 
-/* === Settings Sheet === */
-.sheet-backdrop {
-    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4);
-    opacity: 0; pointer-events: none; transition: opacity 0.25s;
+.camera-stage {
+    position: relative; flex: 1; overflow: hidden;
+    background: #000;
+}
+.camera-video {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+}
+
+/* Frame guide — receipt shape, vignette around it */
+.guide-overlay {
+    position: absolute; inset: 0;
+    pointer-events: none;
+    /* The vignette is a thick semi-transparent border on the box-shadow */
+}
+.guide-frame {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    /* Receipt aspect ratio ~ 1:1.6 */
+    width: min(80vw, 360px);
+    aspect-ratio: 0.62 / 1;
+    border: 2px dashed rgba(255, 255, 255, 0.85);
+    border-radius: 8px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+}
+.guide-corners {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(80vw, 360px);
+    aspect-ratio: 0.62 / 1;
+    pointer-events: none;
+}
+.guide-corners::before,
+.guide-corners::after,
+.guide-corners > span::before,
+.guide-corners > span::after {
+    content: "";
+    position: absolute;
+    width: 24px; height: 24px;
+    border: 3px solid rgba(255, 255, 255, 0.95);
+}
+.guide-corners::before { top: -2px; left: -2px; border-right: 0; border-bottom: 0; border-radius: 8px 0 0 0; }
+.guide-corners::after  { top: -2px; right: -2px; border-left: 0; border-bottom: 0; border-radius: 0 8px 0 0; }
+.guide-corners > span::before { content: ""; bottom: -2px; left: -2px; border-right: 0; border-top: 0; border-radius: 0 0 0 8px; position: absolute; }
+.guide-corners > span::after  { content: ""; bottom: -2px; right: -2px; border-left: 0; border-top: 0; border-radius: 0 0 8px 0; position: absolute; }
+
+.guide-hint {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 80px);
+    left: 50%; transform: translateX(-50%);
+    color: white;
+    font-size: 14px; font-weight: 500;
+    background: rgba(0, 0, 0, 0.45);
+    padding: 6px 14px; border-radius: 999px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    pointer-events: none;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.camera-topbar {
+    position: absolute;
+    top: env(safe-area-inset-top, 0px); left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px;
     z-index: 10;
-    -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
 }
-.sheet-backdrop.open { opacity: 1; pointer-events: auto; }
-
-.sheet {
-    position: fixed; bottom: 0; left: 0; right: 0;
-    background: var(--bg-grouped);
-    border-top-left-radius: 14px; border-top-right-radius: 14px;
-    transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
-    max-height: 92vh; max-height: 92dvh;
-    display: flex; flex-direction: column;
-    z-index: 11;
-    padding-bottom: var(--safe-bottom);
-    box-shadow: var(--shadow-sheet);
+.camera-topbar button {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    color: white; border: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
 }
-.sheet.open { transform: translateY(0); }
+.camera-topbar button:active { background: rgba(0, 0, 0, 0.75); }
+.camera-topbar button.active { background: rgba(255, 220, 0, 0.95); color: #000; }
 
-.sheet-handle {
-    width: 36px; height: 5px; border-radius: 999px;
-    background: var(--separator-opaque);
-    margin: 8px auto 0;
+.camera-bottombar {
+    position: relative;
+    background: #000;
+    padding: 18px 24px calc(28px + var(--safe-bottom));
+    display: flex; justify-content: center; align-items: center;
     flex-shrink: 0;
 }
+.shutter-btn {
+    width: 80px; height: 80px; border-radius: 50%;
+    background: white; border: 4px solid rgba(255, 255, 255, 0.4);
+    background-clip: padding-box;
+    cursor: pointer;
+    transition: transform 0.1s;
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.6) inset;
+}
+.shutter-btn:active { transform: scale(0.92); }
+.shutter-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.sheet-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px;
-    flex-shrink: 0;
+/* === Sending overlay === */
+.sending-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: none; align-items: center; justify-content: center;
+    z-index: 60;
+    color: white;
+    flex-direction: column; gap: 16px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
 }
-.sheet-title { font-weight: 600; font-size: 17px; }
-.sheet-close {
-    background: none; border: 0; color: var(--tint); font-size: 17px; font-weight: 600;
-    padding: 6px 10px; cursor: pointer; min-width: 60px;
+.sending-overlay.open { display: flex; }
+.spinner {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    border: 4px solid rgba(255, 255, 255, 0.25);
+    border-top-color: white;
+    animation: spin 0.9s linear infinite;
 }
-
-.sheet-body {
-    flex: 1; overflow-y: auto;
-    padding: 0 16px 32px;
-    -webkit-overflow-scrolling: touch;
-}
-
-.section {
-    margin-bottom: 28px;
-}
-.section-title {
-    text-transform: uppercase; font-size: 13px; font-weight: 400;
-    color: var(--text-secondary);
-    margin: 0 16px 6px;
-    letter-spacing: -0.08px;
-}
-.section-card {
-    background: var(--bg-elevated);
-    border-radius: 10px;
-    overflow: hidden;
-}
-.section-footer {
-    color: var(--text-secondary); font-size: 13px;
-    margin: 8px 16px 0;
-    line-height: 1.35;
-}
-
-.field-row {
-    padding: 11px 16px;
-    border-bottom: 0.5px solid var(--separator);
-}
-.field-row:last-child { border-bottom: 0; }
-
-input[type="text"], input[type="email"] {
-    -webkit-appearance: none; appearance: none;
-    background: transparent; color: var(--text);
-    border: 0; outline: 0;
-    font-size: 17px;
-    padding: 0;
-    -webkit-user-select: text; user-select: text;
-    width: 100%;
-    font-family: inherit;
-}
-input::placeholder { color: var(--text-tertiary); }
-
-.row {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 11px 16px;
-    border-bottom: 0.5px solid var(--separator);
-    font-size: 17px;
-    text-decoration: none;
-    color: inherit;
-}
-.row:last-child { border-bottom: 0; }
-.row-value { color: var(--text-secondary); }
-.row.link { color: var(--tint); }
-.row .chevron { color: var(--text-tertiary); }
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 
 <body>
 
 <div class="app">
-
     <header class="header">
-        <button class="dest-pill" id="destButton" aria-label="Destination email">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <span class="dest-pill" id="destPill">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <rect x="3" y="6" width="18" height="13" rx="2"/>
                 <path d="m3 8 9 6 9-6"/>
             </svg>
-            <span id="destLabel">Set destination</span>
-        </button>
-        <button class="icon-btn" id="settingsButton" aria-label="Settings">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM19.43 12.98a7.6 7.6 0 0 0 0-1.96l2.11-1.65a.5.5 0 0 0 .12-.64l-2-3.46a.5.5 0 0 0-.6-.22l-2.49 1a7.5 7.5 0 0 0-1.69-.98l-.38-2.65A.5.5 0 0 0 14 2h-4a.5.5 0 0 0-.5.42l-.38 2.65a7.5 7.5 0 0 0-1.69.98l-2.49-1a.5.5 0 0 0-.6.22l-2 3.46a.5.5 0 0 0 .12.64l2.11 1.65a7.6 7.6 0 0 0 0 1.96l-2.11 1.65a.5.5 0 0 0-.12.64l2 3.46c.14.24.43.34.69.22l2.4-.97a7.5 7.5 0 0 0 1.69.98l.38 2.65a.5.5 0 0 0 .5.42h4a.5.5 0 0 0 .5-.42l.38-2.65a7.5 7.5 0 0 0 1.69-.98l2.49 1a.5.5 0 0 0 .6-.22l2-3.46a.5.5 0 0 0-.12-.64l-2.11-1.65z"/>
-            </svg>
-        </button>
+            <span id="destLabel">receipts@risechurchdecatur.com</span>
+        </span>
+        <span></span>
     </header>
 
     <main class="main">
-        <!-- Hero icon (matches the iOS doc.viewfinder.fill) -->
         <svg class="hero-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M3 7V5a2 2 0 0 1 2-2h2"/>
             <path d="M17 3h2a2 2 0 0 1 2 2v2"/>
@@ -304,9 +314,9 @@ input::placeholder { color: var(--text-tertiary); }
         </svg>
 
         <h1 class="title">Receipt Inbox</h1>
-        <p class="subtitle">Snap a receipt and email it to any inbox you choose.</p>
+        <p class="subtitle">Tap Capture, frame the receipt inside the guide, and it sends straight to the finance inbox.</p>
 
-        <button class="capture-btn" id="captureButton" aria-label="Capture a receipt">
+        <button class="capture-btn" id="openCameraBtn" aria-label="Capture a receipt">
             <svg width="56" height="56" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M9 3 7.17 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3H9zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/>
             </svg>
@@ -315,230 +325,217 @@ input::placeholder { color: var(--text-tertiary); }
 
         <div style="flex: 1"></div>
 
-        <p class="footer-text" id="footerText">Tap Capture, take a photo, then send via Mail.</p>
+        <p class="footer-text">Sends to <strong>receipts@risechurchdecatur.com</strong></p>
     </main>
 </div>
 
-<input type="file" id="fileInput" class="file-input" accept="image/*" capture="environment">
-<div id="toast" class="toast" role="status"></div>
-
-<!-- Settings sheet -->
-<div class="sheet-backdrop" id="settingsBackdrop"></div>
-<div class="sheet" id="settingsSheet" role="dialog" aria-label="Settings">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header">
-        <span style="min-width:60px"></span>
-        <span class="sheet-title">Settings</span>
-        <button class="sheet-close" id="settingsClose">Done</button>
+<!-- Camera screen -->
+<div class="camera-screen" id="cameraScreen">
+    <div class="camera-stage">
+        <video class="camera-video" id="cameraVideo" autoplay muted playsinline></video>
+        <div class="guide-overlay" id="guideOverlay">
+            <div class="guide-frame"></div>
+            <div class="guide-corners"><span></span></div>
+            <div class="guide-hint">Frame the receipt inside the box</div>
+        </div>
+        <div class="camera-topbar">
+            <button id="cancelCameraBtn" aria-label="Cancel">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+            <button id="torchBtn" aria-label="Toggle flashlight" style="display:none">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a1 1 0 0 1 .94.66l2.08 5.81 6.13.61a1 1 0 0 1 .56 1.74l-4.6 4.07 1.34 6.05a1 1 0 0 1-1.48 1.07L12 18.74l-5.97 3.27a1 1 0 0 1-1.48-1.07l1.34-6.05L1.29 10.82a1 1 0 0 1 .56-1.74l6.13-.61L10.06 2.66A1 1 0 0 1 11 2h1z"/></svg>
+            </button>
+        </div>
     </div>
-    <div class="sheet-body">
-
-        <section class="section">
-            <h3 class="section-title">Send Receipts To</h3>
-            <div class="section-card">
-                <div class="field-row">
-                    <input type="email" id="destInput"
-                           placeholder="receipts@example.com"
-                           autocomplete="email"
-                           inputmode="email"
-                           autocapitalize="off"
-                           autocorrect="off"
-                           spellcheck="false">
-                </div>
-            </div>
-            <p class="section-footer">When you tap Capture, this is the email address that gets pre-filled in the Mail composer. Leave blank to type the destination yourself each time.</p>
-        </section>
-
-        <section class="section">
-            <h3 class="section-title">Your Name</h3>
-            <div class="section-card">
-                <div class="field-row">
-                    <input type="text" id="nameInput"
-                           placeholder="Optional"
-                           autocomplete="name"
-                           autocapitalize="words"
-                           spellcheck="false">
-                </div>
-            </div>
-            <p class="section-footer">If set, "Captured by [Your Name]" is added to the email body so the recipient knows who sent it.</p>
-        </section>
-
-        <section class="section">
-            <h3 class="section-title">About</h3>
-            <div class="section-card">
-                <div class="row">
-                    <span>Version</span>
-                    <span class="row-value" id="versionRow">1.0</span>
-                </div>
-                <a class="row link" href="https://ultrowillyhub.github.io/receipt-inbox-privacy/" target="_blank" rel="noopener">
-                    <span>Privacy Policy</span>
-                    <span class="chevron">›</span>
-                </a>
-            </div>
-        </section>
-
+    <div class="camera-bottombar">
+        <button class="shutter-btn" id="shutterBtn" aria-label="Take photo"></button>
     </div>
 </div>
+
+<!-- Sending overlay -->
+<div class="sending-overlay" id="sendingOverlay">
+    <div class="spinner"></div>
+    <div id="sendingText">Sending receipt…</div>
+</div>
+
+<div id="toast" class="toast" role="status"></div>
 
 <script>
 (function() {
     'use strict';
 
-    const KEY_DEST = 'receipt-inbox.destination';
+    // === Config ===
+    const SEND_URL = 'https://receipt-inbox-mailer.brandon-pelton77.workers.dev/send';
     const KEY_NAME = 'receipt-inbox.name';
-    const VERSION = '1.0.0';
 
-    // --- DOM refs ---
-    const captureButton = document.getElementById('captureButton');
-    const fileInput = document.getElementById('fileInput');
-    const destButton = document.getElementById('destButton');
-    const destLabel = document.getElementById('destLabel');
-    const settingsButton = document.getElementById('settingsButton');
-    const settingsSheet = document.getElementById('settingsSheet');
-    const settingsBackdrop = document.getElementById('settingsBackdrop');
-    const settingsClose = document.getElementById('settingsClose');
-    const destInput = document.getElementById('destInput');
-    const nameInput = document.getElementById('nameInput');
-    const versionRow = document.getElementById('versionRow');
+    // === DOM refs ===
+    const openCameraBtn = document.getElementById('openCameraBtn');
+    const cameraScreen = document.getElementById('cameraScreen');
+    const cameraVideo = document.getElementById('cameraVideo');
+    const cancelCameraBtn = document.getElementById('cancelCameraBtn');
+    const torchBtn = document.getElementById('torchBtn');
+    const shutterBtn = document.getElementById('shutterBtn');
+    const sendingOverlay = document.getElementById('sendingOverlay');
+    const sendingText = document.getElementById('sendingText');
     const toast = document.getElementById('toast');
-    const footerText = document.getElementById('footerText');
 
-    versionRow.textContent = VERSION;
-
-    // --- Storage helpers ---
-    const getDest = () => (localStorage.getItem(KEY_DEST) || '').trim();
-    const setDest = (v) => {
-        const t = (v || '').trim();
-        if (t) localStorage.setItem(KEY_DEST, t); else localStorage.removeItem(KEY_DEST);
-    };
-    const getName = () => (localStorage.getItem(KEY_NAME) || '').trim();
-    const setName = (v) => {
-        const t = (v || '').trim();
-        if (t) localStorage.setItem(KEY_NAME, t); else localStorage.removeItem(KEY_NAME);
-    };
-
-    // --- Header destination label ---
-    function refreshDestLabel() {
-        const dest = getDest();
-        if (dest) {
-            destLabel.textContent = dest;
-            destButton.classList.remove('unset');
-            footerText.textContent = `Sends to ${dest}`;
-        } else {
-            destLabel.textContent = 'Set destination';
-            destButton.classList.add('unset');
-            footerText.textContent = 'Tip: tap ⚙ to set a default destination email.';
-        }
-    }
-
-    // --- Toast ---
+    // === Toast ===
     let toastTimer = null;
-    function showToast(text, kind) {
+    function showToast(text, kind, durationMs) {
         toast.textContent = text;
         toast.className = 'toast show ' + (kind || '');
         clearTimeout(toastTimer);
-        toastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
+        toastTimer = setTimeout(() => toast.classList.remove('show'), durationMs || 2400);
     }
 
-    // --- Settings sheet ---
-    function openSettings() {
-        destInput.value = getDest();
-        nameInput.value = getName();
-        settingsSheet.classList.add('open');
-        settingsBackdrop.classList.add('open');
-    }
-    function closeSettings() {
-        setDest(destInput.value);
-        setName(nameInput.value);
-        settingsSheet.classList.remove('open');
-        settingsBackdrop.classList.remove('open');
-        refreshDestLabel();
-    }
-    settingsButton.addEventListener('click', openSettings);
-    settingsClose.addEventListener('click', closeSettings);
-    settingsBackdrop.addEventListener('click', closeSettings);
-    destButton.addEventListener('click', openSettings);
+    // === Camera ===
+    let mediaStream = null;
+    let torchTrack = null;
+    let torchOn = false;
 
-    destInput.addEventListener('input', () => setDest(destInput.value));
-    nameInput.addEventListener('input', () => setName(nameInput.value));
+    async function openCamera() {
+        try {
+            mediaStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: { ideal: 'environment' },
+                    width: { ideal: 1920 },
+                    height: { ideal: 2560 },
+                },
+                audio: false,
+            });
+            cameraVideo.srcObject = mediaStream;
+            cameraScreen.classList.add('open');
 
-    // --- Capture flow ---
-    const pad = (n) => String(n).padStart(2, '0');
-
-    function buildEmailParts(file) {
-        const dest = getDest();
-        const name = getName();
-        const now = new Date();
-        const dateStr = now.toLocaleDateString(undefined, { dateStyle: 'medium' });
-        const timeStr = now.toLocaleTimeString(undefined, { timeStyle: 'short' });
-        const filename = `receipt-${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.jpg`;
-        const subject = `Receipt — ${dateStr}`;
-        let body = `Receipt captured ${dateStr} at ${timeStr}`;
-        if (name) body += `\nCaptured by: ${name}`;
-        body += `\n\nSent from Receipt Inbox.`;
-        return {
-            dest, subject, body,
-            file: new File([file], filename, { type: file.type || 'image/jpeg' }),
-        };
-    }
-
-    async function handleCapture(file) {
-        if (!file || !file.type || !file.type.startsWith('image/')) {
-            showToast('No photo captured', 'error');
-            return;
-        }
-        const parts = buildEmailParts(file);
-
-        const shareData = {
-            title: parts.subject,
-            text: parts.body + (parts.dest ? `\n\nSend to: ${parts.dest}` : ''),
-            files: [parts.file],
-        };
-
-        const canShareFiles = navigator.canShare && navigator.canShare({ files: [parts.file] });
-
-        if (navigator.share && canShareFiles) {
-            try {
-                await navigator.share(shareData);
-                showToast('Opened share sheet', 'success');
-            } catch (err) {
-                if (err && err.name === 'AbortError') return;
-                console.error(err);
-                showToast('Could not share', 'error');
+            // Torch (flashlight) detection
+            const track = mediaStream.getVideoTracks()[0];
+            const caps = track.getCapabilities ? track.getCapabilities() : {};
+            if (caps.torch) {
+                torchTrack = track;
+                torchBtn.style.display = '';
+                torchBtn.classList.remove('active');
+                torchOn = false;
+            } else {
+                torchTrack = null;
+                torchBtn.style.display = 'none';
             }
-        } else {
-            fallbackDownloadAndMailto(parts);
+        } catch (err) {
+            console.error('camera error:', err);
+            const name = err && err.name;
+            if (name === 'NotAllowedError' || name === 'SecurityError') {
+                showToast('Camera permission denied. Enable in iOS Settings → Safari → Camera.', 'error', 5000);
+            } else if (name === 'NotFoundError') {
+                showToast('No camera found.', 'error');
+            } else {
+                showToast('Could not open camera: ' + (err && err.message), 'error');
+            }
         }
     }
 
-    function fallbackDownloadAndMailto(parts) {
-        const url = URL.createObjectURL(parts.file);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = parts.file.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        const dest = encodeURIComponent(parts.dest || '');
-        const subject = encodeURIComponent(parts.subject);
-        const body = encodeURIComponent(parts.body + '\n\n(Attach the photo that just downloaded.)');
-        window.location.href = `mailto:${dest}?subject=${subject}&body=${body}`;
-        showToast('Photo downloaded — attach in Mail', 'success');
+    function closeCamera() {
+        cameraScreen.classList.remove('open');
+        if (mediaStream) {
+            for (const track of mediaStream.getTracks()) track.stop();
+            mediaStream = null;
+        }
+        cameraVideo.srcObject = null;
+        torchTrack = null;
+        torchOn = false;
+        torchBtn.classList.remove('active');
     }
 
-    captureButton.addEventListener('click', () => {
-        fileInput.value = '';
-        fileInput.click();
-    });
+    async function toggleTorch() {
+        if (!torchTrack) return;
+        try {
+            torchOn = !torchOn;
+            await torchTrack.applyConstraints({ advanced: [{ torch: torchOn }] });
+            torchBtn.classList.toggle('active', torchOn);
+        } catch (err) {
+            console.error('torch error:', err);
+        }
+    }
 
-    fileInput.addEventListener('change', (e) => {
-        const file = e.target.files && e.target.files[0];
-        if (file) handleCapture(file);
-    });
+    function captureFrameToBlob() {
+        return new Promise((resolve, reject) => {
+            const v = cameraVideo;
+            const w = v.videoWidth;
+            const h = v.videoHeight;
+            if (!w || !h) {
+                reject(new Error('Camera not ready'));
+                return;
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) { reject(new Error('No canvas context')); return; }
+            ctx.drawImage(v, 0, 0, w, h);
+            canvas.toBlob((blob) => {
+                if (blob) resolve(blob);
+                else reject(new Error('Could not encode photo'));
+            }, 'image/jpeg', 0.85);
+        });
+    }
 
-    refreshDestLabel();
+    async function takePhoto() {
+        shutterBtn.disabled = true;
+        try {
+            const blob = await captureFrameToBlob();
+            closeCamera();
+            await sendReceipt(blob);
+        } catch (err) {
+            console.error('capture error:', err);
+            showToast('Capture failed', 'error');
+        } finally {
+            shutterBtn.disabled = false;
+        }
+    }
+
+    // === Send ===
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function timestampedFilename() {
+        const d = new Date();
+        return `receipt-${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.jpg`;
+    }
+
+    function getName() { return (localStorage.getItem(KEY_NAME) || '').trim(); }
+
+    async function sendReceipt(blob) {
+        sendingOverlay.classList.add('open');
+        sendingText.textContent = 'Sending receipt…';
+        try {
+            const filename = timestampedFilename();
+            const file = new File([blob], filename, { type: 'image/jpeg' });
+            const form = new FormData();
+            form.append('file', file);
+            const name = getName();
+            if (name) form.append('sender_name', name);
+            const res = await fetch(SEND_URL, { method: 'POST', body: form });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(json.error || ('HTTP ' + res.status));
+            }
+            sendingOverlay.classList.remove('open');
+            showToast('✓ Receipt sent', 'success');
+        } catch (err) {
+            console.error('send error:', err);
+            sendingOverlay.classList.remove('open');
+            showToast('Couldn’t send: ' + (err.message || err), 'error', 5000);
+        }
+    }
+
+    // === Wire up ===
+    openCameraBtn.addEventListener('click', openCamera);
+    cancelCameraBtn.addEventListener('click', closeCamera);
+    shutterBtn.addEventListener('click', takePhoto);
+    torchBtn.addEventListener('click', toggleTorch);
+
+    // Stop camera if page hides (background, lock, etc.)
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden && mediaStream) closeCamera();
+    });
 })();
 </script>
 
