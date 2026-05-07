@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Receipt Inbox</title>
 
-<meta name="description" content="Snap a receipt and email it to your finance inbox.">
+<meta name="description" content="Snap a receipt and email it to the church finance inbox.">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 
@@ -17,6 +17,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Receipts">
 <link rel="manifest" href="manifest.json">
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 
 <style>
 :root {
@@ -70,15 +72,16 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
-/* === Home screen === */
-.app {
-    display: flex; flex-direction: column;
+.screen {
+    display: none;
+    flex-direction: column;
     min-height: 100vh; min-height: 100dvh;
     padding-top: var(--safe-top);
     padding-bottom: var(--safe-bottom);
     padding-left: var(--safe-left);
     padding-right: var(--safe-right);
 }
+.screen.open { display: flex; }
 
 .header {
     display: flex; align-items: center; justify-content: space-between;
@@ -97,12 +100,27 @@ body {
 }
 .dest-pill svg { flex-shrink: 0; }
 
+.header-right {
+    display: inline-flex; align-items: center; gap: 6px;
+}
+.user-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--bg-grouped);
+    object-fit: cover;
+    cursor: pointer;
+}
+.user-name-pill {
+    color: var(--text-secondary);
+    font-size: 13px; font-weight: 500;
+    max-width: 100px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
 .icon-btn {
     background: none; border: 0; padding: 8px;
     color: var(--tint); cursor: pointer;
     display: inline-flex; align-items: center; justify-content: center;
 }
-.icon-btn:active { color: var(--tint-pressed); }
 
 .main {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -142,6 +160,18 @@ body {
     padding: 24px 16px 16px;
 }
 
+/* Sign-in screen specifics */
+.signin-button-wrap {
+    margin-top: 8px;
+    min-height: 44px;
+    display: flex; align-items: center; justify-content: center;
+}
+.signin-fallback {
+    display: none;
+    color: var(--error); font-size: 13px;
+    margin-top: 8px;
+}
+
 /* === Toast === */
 .toast {
     position: fixed; bottom: calc(24px + var(--safe-bottom)); left: 50%; transform: translateX(-50%);
@@ -168,28 +198,20 @@ body {
     overflow: hidden;
 }
 .camera-screen.open { display: block; }
-
 .camera-video {
     position: absolute; inset: 0;
     width: 100%; height: 100%;
     object-fit: cover;
 }
 
-/* Frame guide — receipt shape, vignette around it */
-.guide-overlay {
-    position: absolute; inset: 0;
-    pointer-events: none;
-    /* The vignette is a thick semi-transparent border on the box-shadow */
-}
+.guide-overlay { position: absolute; inset: 0; pointer-events: none; }
 .guide-frame {
     position: absolute;
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    /* Bounded by viewport so we never overlap top X/flash buttons or bottom shutter */
     width: min(75vw, 320px);
     height: min(55vh, 480px);
     border-radius: 8px;
-    /* Vignette only — no dashed border */
     box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
 }
 .guide-corners {
@@ -222,8 +244,7 @@ body {
     font-size: 14px; font-weight: 500;
     background: rgba(0, 0, 0, 0.45);
     padding: 6px 14px; border-radius: 999px;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     pointer-events: none;
     text-align: center;
     white-space: nowrap;
@@ -246,11 +267,9 @@ body {
 .camera-topbar button:active { background: rgba(0, 0, 0, 0.75); }
 .camera-topbar button.active { background: rgba(255, 220, 0, 0.95); color: #000; }
 
-/* Subtle gradient at the bottom so the shutter button is visible on bright scenes */
 .camera-bottom-fade {
     position: absolute;
-    left: 0; right: 0;
-    bottom: 0;
+    left: 0; right: 0; bottom: 0;
     height: calc(180px + var(--safe-bottom));
     background: linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0));
     pointer-events: none;
@@ -263,8 +282,7 @@ body {
     bottom: calc(32px + var(--safe-bottom));
     transform: translateX(-50%);
     width: 76px; height: 76px; border-radius: 50%;
-    background: white;
-    border: 0;
+    background: white; border: 0;
     cursor: pointer;
     transition: transform 0.1s;
     box-shadow:
@@ -294,21 +312,112 @@ body {
     animation: spin 0.9s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* === Account sheet === */
+.sheet-backdrop {
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4);
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    z-index: 30;
+    -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+}
+.sheet-backdrop.open { opacity: 1; pointer-events: auto; }
+
+.sheet {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--bg-grouped);
+    border-top-left-radius: 14px; border-top-right-radius: 14px;
+    transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    max-height: 92vh; max-height: 92dvh;
+    display: flex; flex-direction: column;
+    z-index: 31;
+    padding-bottom: var(--safe-bottom);
+    box-shadow: var(--shadow-sheet);
+}
+.sheet.open { transform: translateY(0); }
+.sheet-handle {
+    width: 36px; height: 5px; border-radius: 999px;
+    background: var(--separator-opaque);
+    margin: 8px auto 0;
+    flex-shrink: 0;
+}
+.sheet-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    flex-shrink: 0;
+}
+.sheet-title { font-weight: 600; font-size: 17px; }
+.sheet-close {
+    background: none; border: 0; color: var(--tint); font-size: 17px; font-weight: 600;
+    padding: 6px 10px; cursor: pointer; min-width: 60px;
+}
+.sheet-body { flex: 1; overflow-y: auto; padding: 0 16px 32px; }
+.section { margin-bottom: 24px; }
+.section-title {
+    text-transform: uppercase; font-size: 13px; font-weight: 400;
+    color: var(--text-secondary);
+    margin: 0 16px 6px;
+}
+.section-card {
+    background: var(--bg-elevated);
+    border-radius: 10px;
+    overflow: hidden;
+}
+.row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 16px;
+    border-bottom: 0.5px solid var(--separator);
+    font-size: 17px;
+    text-decoration: none;
+    color: inherit;
+}
+.row:last-child { border-bottom: 0; }
+.row-value { color: var(--text-secondary); }
+.row.danger button {
+    background: none; border: 0; color: var(--error); font-size: 17px;
+    padding: 0; cursor: pointer; width: 100%; text-align: left;
+}
 </style>
 </head>
 
 <body>
 
-<div class="app">
+<!-- Sign-In screen -->
+<div class="screen" id="signinScreen">
+    <main class="main">
+        <svg class="hero-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 7V5a2 2 0 0 1 2-2h2"/>
+            <path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+            <path d="M21 17v2a2 2 0 0 1-2 2h-2"/>
+            <path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+            <rect x="7" y="7" width="10" height="10" rx="1.5"/>
+        </svg>
+
+        <h1 class="title">Receipt Inbox</h1>
+        <p class="subtitle">Sign in with your RISE Church staff Google account to capture and submit receipts.</p>
+
+        <div class="signin-button-wrap" id="signinButtonWrap"></div>
+        <div class="signin-fallback" id="signinFallback"></div>
+
+        <div style="flex: 1"></div>
+
+        <p class="footer-text">Sends to <strong>receipts@risechurchdecatur.com</strong></p>
+    </main>
+</div>
+
+<!-- App / Capture screen -->
+<div class="screen" id="appScreen">
     <header class="header">
-        <span class="dest-pill" id="destPill">
+        <span class="dest-pill">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <rect x="3" y="6" width="18" height="13" rx="2"/>
                 <path d="m3 8 9 6 9-6"/>
             </svg>
-            <span id="destLabel">receipts@risechurchdecatur.com</span>
+            <span>receipts@risechurchdecatur.com</span>
         </span>
-        <span></span>
+        <span class="header-right">
+            <span class="user-name-pill" id="headerName"></span>
+            <img class="user-avatar" id="headerAvatar" alt="Account" src="">
+        </span>
     </header>
 
     <main class="main">
@@ -319,7 +428,6 @@ body {
             <path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
             <rect x="7" y="7" width="10" height="10" rx="1.5"/>
         </svg>
-
         <h1 class="title">Receipt Inbox</h1>
         <p class="subtitle">Tap Capture, frame the receipt inside the guide, and it sends straight to the finance inbox.</p>
 
@@ -332,14 +440,14 @@ body {
 
         <div style="flex: 1"></div>
 
-        <p class="footer-text">Sends to <strong>receipts@risechurchdecatur.com</strong></p>
+        <p class="footer-text">Signed in as <span id="footerEmail"></span></p>
     </main>
 </div>
 
 <!-- Camera screen -->
 <div class="camera-screen" id="cameraScreen">
     <video class="camera-video" id="cameraVideo" autoplay muted playsinline></video>
-    <div class="guide-overlay" id="guideOverlay">
+    <div class="guide-overlay">
         <div class="guide-frame"></div>
         <div class="guide-corners"><span></span></div>
         <div class="guide-hint">Frame the receipt inside the box</div>
@@ -365,6 +473,54 @@ body {
     <div id="sendingText">Sending receipt…</div>
 </div>
 
+<!-- Account sheet -->
+<div class="sheet-backdrop" id="acctBackdrop"></div>
+<div class="sheet" id="acctSheet" role="dialog" aria-label="Account">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+        <span style="min-width:60px"></span>
+        <span class="sheet-title">Account</span>
+        <button class="sheet-close" id="acctClose">Done</button>
+    </div>
+    <div class="sheet-body">
+        <section class="section">
+            <h3 class="section-title">Signed in</h3>
+            <div class="section-card">
+                <div class="row">
+                    <span>Name</span>
+                    <span class="row-value" id="acctName">—</span>
+                </div>
+                <div class="row">
+                    <span>Email</span>
+                    <span class="row-value" id="acctEmail">—</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <h3 class="section-title">About</h3>
+            <div class="section-card">
+                <div class="row">
+                    <span>Version</span>
+                    <span class="row-value">1.1</span>
+                </div>
+                <a class="row" href="https://ultrowillyhub.github.io/receipt-inbox-privacy/" target="_blank" rel="noopener" style="color: var(--tint);">
+                    <span>Privacy Policy</span>
+                    <span style="color: var(--text-tertiary);">›</span>
+                </a>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-card">
+                <div class="row danger">
+                    <button id="signOutBtn" type="button">Sign Out</button>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
 <div id="toast" class="toast" role="status"></div>
 
 <script>
@@ -373,9 +529,23 @@ body {
 
     // === Config ===
     const SEND_URL = 'https://receipt-inbox-mailer.brandon-pelton77.workers.dev/send';
-    const KEY_NAME = 'receipt-inbox.name';
+    const GOOGLE_CLIENT_ID = '842519416914-aor8ncaeo5rkjroa4nraqm90ao97b1qb.apps.googleusercontent.com';
+    const STORAGE_KEY = 'receipt-inbox.user';
 
     // === DOM refs ===
+    const signinScreen = document.getElementById('signinScreen');
+    const appScreen = document.getElementById('appScreen');
+    const signinButtonWrap = document.getElementById('signinButtonWrap');
+    const signinFallback = document.getElementById('signinFallback');
+    const headerAvatar = document.getElementById('headerAvatar');
+    const headerName = document.getElementById('headerName');
+    const footerEmail = document.getElementById('footerEmail');
+    const acctName = document.getElementById('acctName');
+    const acctEmail = document.getElementById('acctEmail');
+    const acctSheet = document.getElementById('acctSheet');
+    const acctBackdrop = document.getElementById('acctBackdrop');
+    const acctClose = document.getElementById('acctClose');
+    const signOutBtn = document.getElementById('signOutBtn');
     const openCameraBtn = document.getElementById('openCameraBtn');
     const cameraScreen = document.getElementById('cameraScreen');
     const cameraVideo = document.getElementById('cameraVideo');
@@ -395,6 +565,140 @@ body {
         toastTimer = setTimeout(() => toast.classList.remove('show'), durationMs || 2400);
     }
 
+    // === User storage ===
+    function decodeJwt(token) {
+        try {
+            const parts = token.split('.');
+            const json = atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'));
+            return JSON.parse(decodeURIComponent(escape(json)));
+        } catch (e) { return null; }
+    }
+
+    function saveUser(token) {
+        const payload = decodeJwt(token);
+        if (!payload) return null;
+        const u = {
+            email: payload.email,
+            name: payload.name || payload.email,
+            picture: payload.picture || '',
+            token: token,
+            exp: payload.exp || 0,
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
+        return u;
+    }
+
+    function getUser() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return null;
+            const u = JSON.parse(raw);
+            if (u.exp && (u.exp * 1000) <= Date.now()) {
+                // Expired
+                return null;
+            }
+            return u;
+        } catch (e) { return null; }
+    }
+
+    function clearUser() {
+        localStorage.removeItem(STORAGE_KEY);
+    }
+
+    function showAppScreen(user) {
+        signinScreen.classList.remove('open');
+        appScreen.classList.add('open');
+        headerName.textContent = (user.name || '').split(' ')[0] || '';
+        if (user.picture) {
+            headerAvatar.src = user.picture;
+            headerAvatar.style.display = '';
+        } else {
+            headerAvatar.style.display = 'none';
+        }
+        footerEmail.textContent = user.email;
+        acctName.textContent = user.name || '—';
+        acctEmail.textContent = user.email || '—';
+    }
+
+    function showSignInScreen() {
+        appScreen.classList.remove('open');
+        signinScreen.classList.add('open');
+    }
+
+    // === Google Identity Services ===
+    function handleCredentialResponse(response) {
+        if (!response || !response.credential) {
+            showToast('Sign-in failed', 'error');
+            return;
+        }
+        const user = saveUser(response.credential);
+        if (!user) {
+            showToast('Could not parse credentials', 'error');
+            return;
+        }
+        showAppScreen(user);
+    }
+
+    function initGsi() {
+        if (!window.google || !google.accounts || !google.accounts.id) {
+            // Library not loaded yet
+            return false;
+        }
+        google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleCredentialResponse,
+            auto_select: false,
+            cancel_on_tap_outside: false,
+            ux_mode: 'popup',
+        });
+        google.accounts.id.renderButton(signinButtonWrap, {
+            type: 'standard',
+            theme: 'filled_blue',
+            size: 'large',
+            text: 'signin_with',
+            shape: 'pill',
+            logo_alignment: 'left',
+            width: 280,
+        });
+        return true;
+    }
+
+    function waitForGsi(maxAttempts) {
+        let attempts = 0;
+        return new Promise((resolve, reject) => {
+            const tick = () => {
+                if (initGsi()) { resolve(true); return; }
+                attempts++;
+                if (attempts >= (maxAttempts || 50)) { reject(new Error('GSI did not load')); return; }
+                setTimeout(tick, 100);
+            };
+            tick();
+        });
+    }
+
+    // === Account sheet ===
+    function openAcctSheet() {
+        acctSheet.classList.add('open');
+        acctBackdrop.classList.add('open');
+    }
+    function closeAcctSheet() {
+        acctSheet.classList.remove('open');
+        acctBackdrop.classList.remove('open');
+    }
+    headerAvatar.addEventListener('click', openAcctSheet);
+    headerName.addEventListener('click', openAcctSheet);
+    acctClose.addEventListener('click', closeAcctSheet);
+    acctBackdrop.addEventListener('click', closeAcctSheet);
+
+    signOutBtn.addEventListener('click', () => {
+        clearUser();
+        try { google.accounts.id.disableAutoSelect(); } catch (e) {}
+        closeAcctSheet();
+        showSignInScreen();
+        // Re-render the GSI button so they can sign in again
+        try { initGsi(); } catch (e) {}
+    });
+
     // === Camera ===
     let mediaStream = null;
     let torchTrack = null;
@@ -412,8 +716,6 @@ body {
             });
             cameraVideo.srcObject = mediaStream;
             cameraScreen.classList.add('open');
-
-            // Torch (flashlight) detection
             const track = mediaStream.getVideoTracks()[0];
             const caps = track.getCapabilities ? track.getCapabilities() : {};
             if (caps.torch) {
@@ -456,9 +758,7 @@ body {
             torchOn = !torchOn;
             await torchTrack.applyConstraints({ advanced: [{ torch: torchOn }] });
             torchBtn.classList.toggle('active', torchOn);
-        } catch (err) {
-            console.error('torch error:', err);
-        }
+        } catch (err) { console.error('torch:', err); }
     }
 
     function captureFrameToBlob() {
@@ -466,15 +766,10 @@ body {
             const v = cameraVideo;
             const w = v.videoWidth;
             const h = v.videoHeight;
-            if (!w || !h) {
-                reject(new Error('Camera not ready'));
-                return;
-            }
+            if (!w || !h) { reject(new Error('Camera not ready')); return; }
             const canvas = document.createElement('canvas');
-            canvas.width = w;
-            canvas.height = h;
+            canvas.width = w; canvas.height = h;
             const ctx = canvas.getContext('2d');
-            if (!ctx) { reject(new Error('No canvas context')); return; }
             ctx.drawImage(v, 0, 0, w, h);
             canvas.toBlob((blob) => {
                 if (blob) resolve(blob);
@@ -490,7 +785,7 @@ body {
             closeCamera();
             await sendReceipt(blob);
         } catch (err) {
-            console.error('capture error:', err);
+            console.error('capture:', err);
             showToast('Capture failed', 'error');
         } finally {
             shutterBtn.disabled = false;
@@ -504,9 +799,13 @@ body {
         return `receipt-${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.jpg`;
     }
 
-    function getName() { return (localStorage.getItem(KEY_NAME) || '').trim(); }
-
     async function sendReceipt(blob) {
+        const user = getUser();
+        if (!user) {
+            showSignInScreen();
+            showToast('Please sign in again', 'error');
+            return;
+        }
         sendingOverlay.classList.add('open');
         sendingText.textContent = 'Sending receipt…';
         try {
@@ -514,32 +813,52 @@ body {
             const file = new File([blob], filename, { type: 'image/jpeg' });
             const form = new FormData();
             form.append('file', file);
-            const name = getName();
-            if (name) form.append('sender_name', name);
+            form.append('id_token', user.token);
             const res = await fetch(SEND_URL, { method: 'POST', body: form });
             const json = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                throw new Error(json.error || ('HTTP ' + res.status));
-            }
             sendingOverlay.classList.remove('open');
+            if (res.status === 401 || res.status === 403) {
+                clearUser();
+                showSignInScreen();
+                showToast('Sign-in expired. Please sign in again.', 'error', 4000);
+                try { initGsi(); } catch (e) {}
+                return;
+            }
+            if (!res.ok) throw new Error(json.error || ('HTTP ' + res.status));
             showToast('✓ Receipt sent', 'success');
         } catch (err) {
-            console.error('send error:', err);
+            console.error('send:', err);
             sendingOverlay.classList.remove('open');
             showToast('Couldn’t send: ' + (err.message || err), 'error', 5000);
         }
     }
 
     // === Wire up ===
-    openCameraBtn.addEventListener('click', openCamera);
+    openCameraBtn.addEventListener('click', () => {
+        const user = getUser();
+        if (!user) { showSignInScreen(); return; }
+        openCamera();
+    });
     cancelCameraBtn.addEventListener('click', closeCamera);
     shutterBtn.addEventListener('click', takePhoto);
     torchBtn.addEventListener('click', toggleTorch);
 
-    // Stop camera if page hides (background, lock, etc.)
     document.addEventListener('visibilitychange', () => {
         if (document.hidden && mediaStream) closeCamera();
     });
+
+    // === Boot ===
+    const existing = getUser();
+    if (existing) {
+        showAppScreen(existing);
+    } else {
+        showSignInScreen();
+        // Wait for GSI to load
+        waitForGsi(80).catch(() => {
+            signinFallback.style.display = 'block';
+            signinFallback.textContent = 'Sign-in failed to load. Check your internet connection.';
+        });
+    }
 })();
 </script>
 
