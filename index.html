@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Receipt Inbox</title>
+
+<meta name="description" content="Snap a receipt and email it to any inbox you choose.">
+<meta name="theme-color" content="#0F3560">
+
+<!-- iOS Web App / Add to Home Screen -->
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Receipt Inbox">
+<link rel="manifest" href="manifest.json">
+
+<style>
+:root {
+    --tint: #0a84ff;
+    --bg: #ffffff;
+    --bg-card: #f7f7f7;
+    --text: #111111;
+    --text-secondary: #6b6b6b;
+    --border: #e4e4e7;
+    --warn: #ff9500;
+    --error: #ff3b30;
+    --success: #34c759;
+    --shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --tint: #0a84ff;
+        --bg: #000000;
+        --bg-card: #1c1c1e;
+        --text: #ffffff;
+        --text-secondary: #98989f;
+        --border: #2c2c2e;
+        --shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+    }
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; height: 100%; overscroll-behavior-y: contain; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    line-height: 1.4;
+}
+
+/* === Layout === */
+.app { display: flex; flex-direction: column; height: 100vh; padding-top: var(--safe-top); padding-bottom: var(--safe-bottom); }
+
+.header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.dest-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    max-width: 220px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dest-pill.unset { color: var(--warn); }
+
+.icon-btn {
+    background: none; border: 0; padding: 8px;
+    color: var(--tint); cursor: pointer; font-size: 20px;
+}
+
+.main {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px; gap: 24px;
+}
+
+.capture-btn {
+    width: 220px; height: 220px; border-radius: 50%;
+    background: var(--tint); color: white; border: 0;
+    font-size: 22px; font-weight: 700;
+    box-shadow: var(--shadow);
+    cursor: pointer; transition: transform 0.1s;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+}
+.capture-btn:active { transform: scale(0.97); }
+.capture-btn .camera-icon { font-size: 56px; line-height: 1; }
+
+.subtitle {
+    text-align: center; color: var(--text-secondary);
+    font-size: 14px; padding: 0 16px;
+}
+
+.toast {
+    position: fixed; bottom: calc(24px + var(--safe-bottom)); left: 50%; transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.9); color: white;
+    padding: 10px 18px; border-radius: 999px;
+    font-size: 14px; font-weight: 500;
+    opacity: 0; transition: opacity 0.2s;
+    pointer-events: none;
+    box-shadow: var(--shadow);
+}
+.toast.show { opacity: 1; }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--error); }
+
+/* Hidden file input — invisible but functional */
+.file-input { display: none; }
+
+/* === Sheets (Settings, etc.) === */
+.sheet-backdrop {
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4);
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    z-index: 10;
+}
+.sheet-backdrop.open { opacity: 1; pointer-events: auto; }
+
+.sheet {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--bg);
+    border-top-left-radius: 18px; border-top-right-radius: 18px;
+    transform: translateY(100%); transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    max-height: 90vh; display: flex; flex-direction: column;
+    z-index: 11;
+    padding-bottom: var(--safe-bottom);
+}
+.sheet.open { transform: translateY(0); }
+
+.sheet-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+}
+.sheet-title { font-weight: 600; font-size: 17px; }
+.sheet-close {
+    background: none; border: 0; color: var(--tint); font-size: 17px;
+    padding: 4px 8px; cursor: pointer;
+}
+
+.sheet-body {
+    flex: 1; overflow-y: auto;
+    padding: 12px 16px 24px;
+}
+
+.section {
+    margin-bottom: 24px;
+}
+.section-title {
+    text-transform: uppercase; font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    margin: 0 4px 6px;
+}
+.section-card {
+    background: var(--bg-card);
+    border-radius: 12px;
+    padding: 12px 16px;
+}
+.section-footer {
+    color: var(--text-secondary); font-size: 12px;
+    margin: 8px 4px 0;
+}
+
+label.field {
+    display: flex; flex-direction: column; gap: 6px;
+}
+input[type="text"], input[type="email"] {
+    -webkit-appearance: none; appearance: none;
+    background: transparent; color: var(--text);
+    border: 0; outline: 0;
+    font-size: 17px;
+    padding: 6px 0;
+    -webkit-user-select: text; user-select: text;
+    width: 100%;
+}
+input::placeholder { color: var(--text-secondary); }
+
+.row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+}
+.row:last-child { border-bottom: 0; }
+.row-label { font-size: 16px; }
+.row-value { color: var(--text-secondary); font-size: 16px; }
+
+.about-link {
+    display: block; padding: 10px 0;
+    color: var(--tint); text-decoration: none;
+    font-size: 16px;
+    border-bottom: 1px solid var(--border);
+}
+.about-link:last-child { border-bottom: 0; }
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+    <header class="header">
+        <button class="dest-pill" id="destButton" aria-label="Destination email">
+            <span id="destLabel">Set destination</span>
+        </button>
+        <button class="icon-btn" id="settingsButton" aria-label="Settings">⚙</button>
+    </header>
+
+    <main class="main">
+        <button class="capture-btn" id="captureButton" aria-label="Capture a receipt">
+            <span class="camera-icon">📷</span>
+            <span>Capture</span>
+        </button>
+        <p class="subtitle">Tap Capture, take a photo, then send it to your inbox via Mail.</p>
+    </main>
+</div>
+
+<input type="file" id="fileInput" class="file-input" accept="image/*" capture="environment">
+<div id="toast" class="toast" role="status"></div>
+
+<!-- Settings sheet -->
+<div class="sheet-backdrop" id="settingsBackdrop"></div>
+<div class="sheet" id="settingsSheet" role="dialog" aria-label="Settings">
+    <div class="sheet-header">
+        <span class="sheet-title">Settings</span>
+        <button class="sheet-close" id="settingsClose">Done</button>
+    </div>
+    <div class="sheet-body">
+
+        <section class="section">
+            <h3 class="section-title">Send Receipts To</h3>
+            <div class="section-card">
+                <label class="field">
+                    <input type="email" id="destInput"
+                           placeholder="receipts@example.com"
+                           autocomplete="email"
+                           inputmode="email"
+                           autocapitalize="off"
+                           autocorrect="off"
+                           spellcheck="false">
+                </label>
+            </div>
+            <p class="section-footer">When you tap Capture, this is the email address that gets pre-filled in the Mail composer.</p>
+        </section>
+
+        <section class="section">
+            <h3 class="section-title">Your Name</h3>
+            <div class="section-card">
+                <label class="field">
+                    <input type="text" id="nameInput"
+                           placeholder="Optional — appears in the email body"
+                           autocomplete="name">
+                </label>
+            </div>
+            <p class="section-footer">Optional. If set, "Captured by [Your Name]" is added to the email body.</p>
+        </section>
+
+        <section class="section">
+            <h3 class="section-title">About</h3>
+            <div class="section-card">
+                <div class="row">
+                    <span class="row-label">Version</span>
+                    <span class="row-value" id="versionRow">1.0</span>
+                </div>
+                <a class="about-link" href="https://ultrowillyhub.github.io/receipt-inbox-privacy/" target="_blank" rel="noopener">Privacy Policy ↗</a>
+            </div>
+        </section>
+
+    </div>
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    const KEY_DEST = 'receipt-inbox.destination';
+    const KEY_NAME = 'receipt-inbox.name';
+    const VERSION = '1.0.0';
+
+    // --- DOM refs ---
+    const captureButton = document.getElementById('captureButton');
+    const fileInput = document.getElementById('fileInput');
+    const destButton = document.getElementById('destButton');
+    const destLabel = document.getElementById('destLabel');
+    const settingsButton = document.getElementById('settingsButton');
+    const settingsSheet = document.getElementById('settingsSheet');
+    const settingsBackdrop = document.getElementById('settingsBackdrop');
+    const settingsClose = document.getElementById('settingsClose');
+    const destInput = document.getElementById('destInput');
+    const nameInput = document.getElementById('nameInput');
+    const versionRow = document.getElementById('versionRow');
+    const toast = document.getElementById('toast');
+
+    versionRow.textContent = VERSION;
+
+    // --- Storage helpers ---
+    function getDest() {
+        return (localStorage.getItem(KEY_DEST) || '').trim();
+    }
+    function setDest(value) {
+        const v = (value || '').trim();
+        if (v) localStorage.setItem(KEY_DEST, v);
+        else localStorage.removeItem(KEY_DEST);
+    }
+    function getName() {
+        return (localStorage.getItem(KEY_NAME) || '').trim();
+    }
+    function setName(value) {
+        const v = (value || '').trim();
+        if (v) localStorage.setItem(KEY_NAME, v);
+        else localStorage.removeItem(KEY_NAME);
+    }
+
+    // --- Header destination label ---
+    function refreshDestLabel() {
+        const dest = getDest();
+        if (dest) {
+            destLabel.textContent = '→ ' + dest;
+            destButton.classList.remove('unset');
+        } else {
+            destLabel.textContent = 'Set destination';
+            destButton.classList.add('unset');
+        }
+    }
+
+    // --- Toast ---
+    let toastTimer = null;
+    function showToast(text, kind) {
+        toast.textContent = text;
+        toast.className = 'toast show ' + (kind || '');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
+    }
+
+    // --- Settings sheet ---
+    function openSettings() {
+        destInput.value = getDest();
+        nameInput.value = getName();
+        settingsSheet.classList.add('open');
+        settingsBackdrop.classList.add('open');
+    }
+    function closeSettings() {
+        // Save on close
+        setDest(destInput.value);
+        setName(nameInput.value);
+        settingsSheet.classList.remove('open');
+        settingsBackdrop.classList.remove('open');
+        refreshDestLabel();
+    }
+    settingsButton.addEventListener('click', openSettings);
+    settingsClose.addEventListener('click', closeSettings);
+    settingsBackdrop.addEventListener('click', closeSettings);
+    destButton.addEventListener('click', openSettings);
+
+    // Save on each input edit (so background or app-quit doesn't lose)
+    destInput.addEventListener('input', () => setDest(destInput.value));
+    nameInput.addEventListener('input', () => setName(nameInput.value));
+
+    // --- Capture flow ---
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    function buildEmailParts(file) {
+        const dest = getDest();
+        const name = getName();
+        const now = new Date();
+        const dateStr = now.toLocaleDateString(undefined, { dateStyle: 'medium' });
+        const timeStr = now.toLocaleTimeString(undefined, { timeStyle: 'short' });
+        const filename = `receipt-${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.jpg`;
+        const subject = `Receipt — ${dateStr}`;
+        let body = `Receipt captured ${dateStr} at ${timeStr}`;
+        if (name) body += `\nCaptured by: ${name}`;
+        body += `\n\nSent from Receipt Inbox.`;
+        return {
+            dest,
+            subject,
+            body,
+            file: new File([file], filename, { type: file.type || 'image/jpeg' }),
+        };
+    }
+
+    async function handleCapture(file) {
+        if (!file || !file.type || !file.type.startsWith('image/')) {
+            showToast('No photo captured', 'error');
+            return;
+        }
+        const parts = buildEmailParts(file);
+
+        // Web Share API — opens iOS share sheet with photo attached.
+        // User picks Mail, types/auto-completes recipient, taps Send.
+        const shareData = {
+            title: parts.subject,
+            text: parts.body + (parts.dest ? `\n\nSend to: ${parts.dest}` : ''),
+            files: [parts.file],
+        };
+
+        // Some iOS builds don't support `files` in canShare — guard cautiously.
+        const canShareFiles = navigator.canShare && navigator.canShare({ files: [parts.file] });
+
+        if (navigator.share && canShareFiles) {
+            try {
+                await navigator.share(shareData);
+                showToast('Opened share sheet', 'success');
+            } catch (err) {
+                if (err && err.name === 'AbortError') return; // user cancelled — silent
+                console.error(err);
+                showToast('Could not share', 'error');
+            }
+        } else {
+            // Fallback for unsupported browsers — offer a download + open Mail
+            fallbackDownloadAndMailto(parts);
+        }
+    }
+
+    function fallbackDownloadAndMailto(parts) {
+        // Download the photo first so the user can attach it manually
+        const url = URL.createObjectURL(parts.file);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = parts.file.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        // Open mailto with To/Subject/Body pre-filled (no attachment via mailto)
+        const dest = encodeURIComponent(parts.dest || '');
+        const subject = encodeURIComponent(parts.subject);
+        const body = encodeURIComponent(parts.body + '\n\n(Attach the photo that just downloaded.)');
+        window.location.href = `mailto:${dest}?subject=${subject}&body=${body}`;
+        showToast('Photo downloaded — attach in Mail', 'success');
+    }
+
+    captureButton.addEventListener('click', () => {
+        // Reset value first so re-selecting same file fires change
+        fileInput.value = '';
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) handleCapture(file);
+    });
+
+    // --- Init ---
+    refreshDestLabel();
+})();
+</script>
+
+</body>
+</html>
