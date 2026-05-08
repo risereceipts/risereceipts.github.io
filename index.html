@@ -592,13 +592,13 @@ body {
         try {
             const raw = localStorage.getItem(STORAGE_KEY);
             if (!raw) return null;
-            const u = JSON.parse(raw);
-            if (u.exp && (u.exp * 1000) <= Date.now()) {
-                // Expired
-                return null;
-            }
-            return u;
+            return JSON.parse(raw);
         } catch (e) { return null; }
+    }
+    function isTokenExpired(u) {
+        if (!u || !u.exp) return true;
+        // Treat as expired 30 sec before actual exp to give the network some slack.
+        return (u.exp * 1000) <= (Date.now() + 30_000);
     }
 
     function clearUser() {
@@ -678,7 +678,7 @@ body {
         google.accounts.id.initialize({
             client_id: GOOGLE_CLIENT_ID,
             callback: handleCredentialResponse,
-            auto_select: false,
+            auto_select: true,                 // returning users silently re-signed in
             cancel_on_tap_outside: false,
             ux_mode: 'popup',
         });
@@ -692,6 +692,16 @@ body {
             width: 280,
         });
         return true;
+    }
+
+    // Ask GIS to silently refresh the credential. If the user is still signed in
+    // to Google in this browser (the common case), this silently updates the
+    // stored token in the background — no UI shown to the user.
+    function silentlyRefresh() {
+        if (!window.google || !google.accounts || !google.accounts.id) return;
+        try {
+            google.accounts.id.prompt(); // callback fires on success; we ignore the notification
+        } catch (e) { console.warn('silent prompt error:', e); }
     }
 
     function waitForGsi(maxAttempts) {
@@ -830,8 +840,34 @@ body {
         return `receipt-${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.jpg`;
     }
 
+    function postReceipt(blob, token) {
+        const filename = timestampedFilename();
+        const file = new File([blob], filename, { type: 'image/jpeg' });
+        const form = new FormData();
+        form.append('file', file);
+        form.append('id_token', token);
+        return fetch(SEND_URL, { method: 'POST', body: form });
+    }
+
+    // Ask GIS for a fresh credential and resolve when our callback updates
+    // localStorage. Returns true if a fresh token arrived within `timeoutMs`.
+    function refreshTokenAndWait(timeoutMs) {
+        return new Promise((resolve) => {
+            const before = (getUser() || {}).token;
+            silentlyRefresh();
+            const start = Date.now();
+            const tick = () => {
+                const after = (getUser() || {}).token;
+                if (after && after !== before) { resolve(true); return; }
+                if (Date.now() - start > (timeoutMs || 4000)) { resolve(false); return; }
+                setTimeout(tick, 200);
+            };
+            tick();
+        });
+    }
+
     async function sendReceipt(blob) {
-        const user = getUser();
+        let user = getUser();
         if (!user) {
             showSignInScreen();
             showToast('Please sign in again', 'error');
@@ -839,16 +875,32 @@ body {
         }
         sendingOverlay.classList.add('open');
         sendingText.textContent = 'Sending receipt…';
+
+        // If the stored token is expired (or near expiry), proactively refresh
+        if (isTokenExpired(user)) {
+            sendingText.textContent = 'Refreshing sign-in…';
+            const refreshed = await refreshTokenAndWait(4000);
+            if (refreshed) user = getUser() || user;
+        }
+
         try {
-            const filename = timestampedFilename();
-            const file = new File([blob], filename, { type: 'image/jpeg' });
-            const form = new FormData();
-            form.append('file', file);
-            form.append('id_token', user.token);
-            const res = await fetch(SEND_URL, { method: 'POST', body: form });
+            sendingText.textContent = 'Sending receipt…';
+            let res = await postReceipt(blob, user.token);
+            // If the worker still says it's expired, try one more silent refresh + retry
+            if (res.status === 401) {
+                sendingText.textContent = 'Refreshing sign-in…';
+                const refreshed = await refreshTokenAndWait(4000);
+                if (refreshed) {
+                    user = getUser() || user;
+                    sendingText.textContent = 'Sending receipt…';
+                    res = await postReceipt(blob, user.token);
+                }
+            }
             const json = await res.json().catch(() => ({}));
             sendingOverlay.classList.remove('open');
+
             if (res.status === 401 || res.status === 403) {
+                // Couldn't refresh — really do need a new sign-in
                 clearUser();
                 showSignInScreen();
                 showToast('Sign-in expired. Please sign in again.', 'error', 4000);
@@ -881,15 +933,28 @@ body {
     // === Boot ===
     const existing = getUser();
     if (existing) {
+        // Show the app immediately using the stored profile, even if the token
+        // is technically expired — silent refresh below will quietly update it.
         showAppScreen(existing);
     } else {
         showSignInScreen();
-        // Wait for GSI to load
-        waitForGsi(80).catch(() => {
-            signinFallback.style.display = 'block';
-            signinFallback.textContent = 'Sign-in failed to load. Check your internet connection.';
-        });
     }
+
+    // Always init GIS once it's loaded — we need the silent refresh path
+    // available no matter which screen we're on.
+    waitForGsi(80)
+        .then(() => {
+            if (existing) {
+                // Try to silently refresh the token in the background
+                silentlyRefresh();
+            }
+        })
+        .catch(() => {
+            if (!existing) {
+                signinFallback.style.display = 'block';
+                signinFallback.textContent = 'Sign-in failed to load. Check your internet connection.';
+            }
+        });
 })();
 </script>
 
